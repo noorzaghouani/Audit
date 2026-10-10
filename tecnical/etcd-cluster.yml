@@ -1,0 +1,44 @@
+- name: Configuration du cluster etcd
+  hosts: database
+  become: true
+  tasks:
+    - name: Créer le répertoire de configuration etcd
+      ansible.builtin.file:
+        path: /etc/etcd
+        state: directory
+        owner: etcd
+        group: etcd
+        mode: '0750'
+
+    - name: Déployer la configuration etcd
+      ansible.builtin.template:
+        src: etcd.conf.yml.j2
+        dest: /etc/etcd/etcd.conf.yml
+        owner: etcd
+        group: etcd
+        mode: '0640'
+
+    - name: Créer le service systemd etcd
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/etcd.service
+        content: |
+          [Unit]
+          Description=etcd
+          After=network.target
+          [Service]
+          Type=notify
+          User=etcd
+          ExecStart=/usr/local/bin/etcd --config-file=/etc/etcd/etcd.conf.yml
+          Restart=on-failure
+          RestartSec=5
+          LimitNOFILE=65536
+          [Install]
+          WantedBy=multi-user.target
+        mode: '0644'
+
+    - name: Recharger systemd et démarrer etcd
+      ansible.builtin.systemd:
+        daemon_reload: true
+        name: etcd
+        state: started
+        enabled: true

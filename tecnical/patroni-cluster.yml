@@ -1,0 +1,60 @@
+- name: Configuration du cluster Patroni
+  hosts: database
+  become: true
+  tasks:
+    - name: Localiser le binaire patroni
+      ansible.builtin.shell: "find /usr/local/bin /usr/bin -maxdepth 1 -name patroni -type f 2>/dev/null | head -n1"
+      register: patroni_bin
+      changed_when: false
+      failed_when: patroni_bin.stdout == ""
+
+    - name: Créer le répertoire de configuration Patroni
+      ansible.builtin.file:
+        path: /etc/patroni
+        state: directory
+        owner: postgres
+        group: postgres
+        mode: '0750'
+
+    - name: S'assurer que le data_dir PostgreSQL existe
+      ansible.builtin.file:
+        path: /var/lib/pgsql/16/data
+        state: directory
+        owner: postgres
+        group: postgres
+        mode: '0700'
+
+    - name: Déployer la configuration Patroni
+      ansible.builtin.template:
+        src: patroni.yml.j2
+        dest: /etc/patroni/patroni.yml
+        owner: postgres
+        group: postgres
+        mode: '0640'
+
+    - name: Créer le service systemd Patroni
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/patroni.service
+        content: |
+          [Unit]
+          Description=Patroni PostgreSQL HA
+          After=etcd.service
+          Requires=etcd.service
+          [Service]
+          Type=simple
+          User=postgres
+          Group=postgres
+          ExecStart={{ patroni_bin.stdout }} /etc/patroni/patroni.yml
+          Restart=on-failure
+          RestartSec=10
+          LimitNOFILE=65536
+          [Install]
+          WantedBy=multi-user.target
+        mode: '0644'
+
+    - name: Recharger systemd et démarrer Patroni
+      ansible.builtin.systemd:
+        daemon_reload: true
+        name: patroni
+        state: started
+        enabled: true

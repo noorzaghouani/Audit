@@ -1,0 +1,56 @@
+- name: Prérequis PostgreSQL + etcd + Patroni sur les nœuds DB
+  hosts: database
+  become: true
+  vars:
+    etcd_version: "3.5.17"
+  tasks:
+    - name: Installer les dépendances de base
+      ansible.builtin.dnf:
+        name: [python3-pip, python3-packaging, python3-devel, gcc, firewalld, tar]
+        state: present
+
+    - name: Ajouter le dépôt officiel PGDG
+      ansible.builtin.dnf:
+        name: https://download.postgresql.org/pub/repos/yum/reporpms/EL-10-x86_64/pgdg-redhat-repo-latest.noarch.rpm
+        state: present
+        disable_gpg_check: true
+
+    - name: Installer PostgreSQL 16 depuis PGDG
+      ansible.builtin.dnf:
+        name: [postgresql16, postgresql16-server, postgresql16-contrib, python3-psycopg2]
+        state: present
+
+    - name: Télécharger et extraire etcd
+      ansible.builtin.unarchive:
+        src: "https://github.com/etcd-io/etcd/releases/download/v{{ etcd_version }}/etcd-v{{ etcd_version }}-linux-amd64.tar.gz"
+        dest: /tmp
+        remote_src: true
+
+    - name: Installer les binaires etcd et etcdctl
+      ansible.builtin.copy:
+        src: "/tmp/etcd-v{{ etcd_version }}-linux-amd64/{{ item }}"
+        dest: "/usr/local/bin/{{ item }}"
+        mode: '0755'
+        remote_src: true
+      loop: [etcd, etcdctl]
+
+    - name: Créer l'utilisateur système etcd
+      ansible.builtin.user:
+        name: etcd
+        system: true
+        shell: /sbin/nologin
+        home: /var/lib/etcd
+        create_home: true
+
+    - name: Installer Patroni avec le support etcd3
+      ansible.builtin.pip:
+        name: "patroni[etcd3]"
+        executable: pip3
+
+    - name: Ouvrir les ports nécessaires
+      ansible.posix.firewalld:
+        port: "{{ item }}"
+        permanent: true
+        immediate: true
+        state: enabled
+      loop: ["2379/tcp", "2380/tcp", "5432/tcp", "8008/tcp"]

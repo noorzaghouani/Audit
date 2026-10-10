@@ -1,0 +1,97 @@
+- name: Créer l'utilisateur PostgreSQL pour ODOO (sur le leader actuel)
+  hosts: DB1
+  become: true
+  tasks:
+    - name: Déposer le script SQL de création du rôle
+      ansible.builtin.copy:
+        dest: /tmp/create_odoo_role.sql
+        content: |
+          DO $$
+          BEGIN
+            IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'odoo') THEN
+              CREATE ROLE odoo WITH LOGIN CREATEDB PASSWORD 'OdooDbPass2026';
+            END IF;
+          END
+          $$;
+        mode: '0644'
+
+    - name: Exécuter le script en tant que postgres
+      ansible.builtin.shell: su - postgres -c "PATH=/usr/pgsql-16/bin:\$PATH psql -f /tmp/create_odoo_role.sql"
+      register: create_role
+      changed_when: "'DO' in create_role.stdout or 'CREATE ROLE' in create_role.stdout"
+
+- name: Déploiement ODOO + routeur PostgreSQL local sur odoo1/odoo2
+  hosts: odoo
+  become: true
+  vars:
+    odoo_db_password: "OdooDbPass2026"
+
+  tasks:
+    - name: Créer le répertoire du projet ODOO
+      ansible.builtin.file:
+        path: /opt/odoo
+        state: directory
+        mode: '0755'
+
+    - name: Déployer la config HAProxy (routeur PostgreSQL local, suit le primaire Patroni)
+      ansible.builtin.copy:
+        dest: /opt/odoo/haproxy-pg.cfg
+        content: |
+          global
+              maxconn 100
+          defaults
+              mode tcp
+              timeout connect 5s
+              timeout client 30s
+              timeout server 30s
+          listen postgres
+              bind *:5432
+              option httpchk GET /primary
+              http-check expect status 200
+              default-server inter 3s fall 3 rise 2 on-marked-down shutdown-sessions
+              server db1 10.30.0.11:5432 check port 8008
+              server db2 10.30.0.12:5432 check port 8008
+              server db3 10.30.0.13:5432 check port 8008
+        mode: '0644'
+
+    - name: Déployer le docker-compose.yml
+      ansible.builtin.copy:
+        dest: /opt/odoo/docker-compose.yml
+        content: |
+          services:
+            pg-router:
+              image: haproxy:latest
+              restart: always
+              network_mode: host
+              volumes:
+                - ./haproxy-pg.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+
+            odoo:
+              image: odoo:19.0
+              restart: always
+              network_mode: host
+              environment:
+                HOST: "127.0.0.1"
+                PORT: "5432"
+                USER: "odoo"
+                PASSWORD: "{{ odoo_db_password }}"
+              volumes:
+                - odoo-data:/var/lib/odoo
+                - odoo-config:/etc/odoo
+
+          volumes:
+            odoo-data:
+            odoo-config:
+        mode: '0644'
+
+    - name: Ouvrir le port 8069 (interface web ODOO)
+      ansible.posix.firewalld:
+        port: "8069/tcp"
+        permanent: true
+        immediate: true
+        state: enabled
+
+    - name: Lancer la stack avec Docker Compose
+      ansible.builtin.command: docker compose up -d
+      args:
+        chdir: /opt/odoo

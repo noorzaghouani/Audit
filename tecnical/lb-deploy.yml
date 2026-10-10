@@ -1,0 +1,53 @@
+- name: HAProxy + Keepalived sur lb1/lb2 (VIP client)
+  hosts: loadbalancers
+  become: true
+  tasks:
+    - name: Installer HAProxy et Keepalived
+      ansible.builtin.dnf:
+        name: [haproxy, keepalived]
+        state: present
+
+    - name: Autoriser HAProxy à se connecter librement (SELinux)
+      ansible.posix.seboolean:
+        name: haproxy_connect_any
+        state: true
+        persistent: true
+
+    - name: Déployer la configuration HAProxy
+      ansible.builtin.template:
+        src: haproxy.cfg.j2
+        dest: /etc/haproxy/haproxy.cfg
+        mode: '0644'
+
+    - name: Déployer la configuration Keepalived
+      ansible.builtin.template:
+        src: keepalived.conf.j2
+        dest: /etc/keepalived/keepalived.conf
+        mode: '0644'
+
+    - name: Autoriser le trafic VRRP dans firewalld
+      ansible.posix.firewalld:
+        protocol: vrrp
+        permanent: true
+        immediate: true
+        state: enabled
+
+    - name: Ouvrir les ports 8069 et 8404
+      ansible.posix.firewalld:
+        port: "{{ item }}"
+        permanent: true
+        immediate: true
+        state: enabled
+      loop: ["8069/tcp", "8404/tcp"]
+
+    - name: Démarrer et activer HAProxy
+      ansible.builtin.systemd:
+        name: haproxy
+        state: restarted
+        enabled: true
+
+    - name: Démarrer et activer Keepalived
+      ansible.builtin.systemd:
+        name: keepalived
+        state: restarted
+        enabled: true

@@ -1,0 +1,23 @@
+vrrp_script chk_haproxy {
+    script "/usr/bin/pgrep haproxy"
+    interval 2
+    weight -20
+}
+
+vrrp_instance VI_1 {
+    state {{ keepalived_state }}
+    interface ens224
+    virtual_router_id 51
+    priority {{ keepalived_priority }}
+    advert_int 1
+    authentication {
+        auth_type PASS
+        auth_pass odooha2026
+    }
+    virtual_ipaddress {
+        {{ vip }}
+    }
+    track_script {
+        chk_haproxy
+    }
+}

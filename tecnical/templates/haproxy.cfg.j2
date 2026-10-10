@@ -1,0 +1,29 @@
+global
+    maxconn 2000
+
+defaults
+    mode http
+    timeout connect 5s
+    timeout client 30s
+    timeout server 30s
+
+frontend odoo_front_http
+    bind *:8069
+    default_backend odoo_back
+
+frontend odoo_front_https
+    bind *:443 ssl crt /etc/pki/tls/certs/erp.pem
+    default_backend odoo_back
+
+backend odoo_back
+    balance roundrobin
+    cookie SRVID insert indirect nocache
+    server odoo1 10.20.0.11:8069 check cookie odoo1
+    server odoo2 10.20.0.12:8069 check cookie odoo2
+
+listen stats
+    bind *:8404 ssl crt /etc/pki/tls/certs/erp.pem
+    stats enable
+    stats uri /stats
+    stats refresh 10s
+    stats auth admin:HaproxyStats2026

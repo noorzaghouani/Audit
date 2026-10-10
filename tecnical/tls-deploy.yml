@@ -1,0 +1,27 @@
+- name: Activer HTTPS sur HAProxy (lb1/lb2)
+  hosts: loadbalancers
+  become: true
+  tasks:
+    - name: Déployer le certificat
+      ansible.builtin.copy:
+        src: /home/noor/certs/erp.pem
+        dest: /etc/pki/tls/certs/erp.pem
+        mode: '0640'
+
+    - name: Redéployer la config HAProxy avec HTTPS
+      ansible.builtin.template:
+        src: haproxy.cfg.j2
+        dest: /etc/haproxy/haproxy.cfg
+        mode: '0644'
+
+    - name: Ouvrir le port 443
+      ansible.posix.firewalld:
+        port: "443/tcp"
+        permanent: true
+        immediate: true
+        state: enabled
+
+    - name: Redémarrer HAProxy
+      ansible.builtin.systemd:
+        name: haproxy
+        state: restarted

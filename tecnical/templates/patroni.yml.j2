@@ -1,0 +1,55 @@
+scope: odoo-ha-cluster
+namespace: /db/
+name: {{ inventory_hostname }}
+
+restapi:
+  listen: {{ data_ip }}:8008
+  connect_address: {{ data_ip }}:8008
+
+etcd3:
+  hosts:
+{% for host in groups['database'] %}
+    - {{ hostvars[host].data_ip }}:2379
+{% endfor %}
+
+bootstrap:
+  dcs:
+    ttl: 30
+    loop_wait: 10
+    retry_timeout: 10
+    maximum_lag_on_failover: 1048576
+    postgresql:
+      use_pg_rewind: true
+      parameters:
+        wal_level: replica
+        hot_standby: "on"
+        max_wal_senders: 10
+        max_replication_slots: 10
+  initdb:
+    - encoding: UTF8
+    - data-checksums
+  pg_hba:
+    - host replication replicator 10.30.0.8/29 md5
+    - host all all 10.30.0.8/29 md5
+    - local all all trust
+
+postgresql:
+  listen: {{ data_ip }},127.0.0.1:5432
+  connect_address: {{ data_ip }}:5432
+  data_dir: /var/lib/pgsql/16/data
+  bin_dir: /usr/pgsql-16/bin
+  authentication:
+    replication:
+      username: replicator
+      password: "ReplicatorPass2026"
+    superuser:
+      username: postgres
+      password: "SuperuserPass2026"
+  parameters:
+    unix_socket_directories: '/var/run/postgresql'
+
+tags:
+  nofailover: false
+  noloadbalance: false
+  clonefrom: false
+  nosync: false
