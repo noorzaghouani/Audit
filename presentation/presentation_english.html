@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Présentation Audit — Architecture HA ODOO</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --primary: #1a4fa0;
+    --accent: #2563eb;
+    --accent2: #0ea5e9;
+    --green: #059669;
+    --red: #dc2626;
+    --orange: #ea580c;
+    --light-bg: #f8faff;
+    --white: #ffffff;
+    --gray: #64748b;
+    --dark: #1e293b;
+    --border: #e2e8f0;
+  }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: #e8eef8;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 25px 20px;
+    min-height: 100vh;
+  }
+
+  .nav {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 12px;
+    background: rgba(255,255,255,0.95);
+    padding: 10px 22px;
+    border-radius: 50px;
+    box-shadow: 0 8px 30px rgba(26,79,160,0.18);
+    z-index: 100;
+    backdrop-filter: blur(10px);
+  }
+
+  .nav button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 9px 22px;
+    border-radius: 25px;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Inter', sans-serif;
+  }
+  .nav button:hover { background: var(--primary); transform: scale(1.04); }
+  .nav button:disabled { background: #cbd5e1; cursor: not-allowed; transform: none; }
+
+  .slide-counter {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--primary);
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    min-width: 60px;
+    justify-content: center;
+  }
+
+  .slide {
+    display: none;
+    width: 980px;
+    min-height: 550px;
+    border-radius: 18px;
+    box-shadow: 0 16px 50px rgba(26,79,160,0.12);
+    overflow: hidden;
+    position: relative;
+    margin-bottom: 90px;
+  }
+  .slide.active { display: flex; flex-direction: column; }
+
+  /* ─── SLIDE 1 — TITRE ─── */
+  .slide-1 {
+    background: linear-gradient(135deg, #1a4fa0 0%, #1e3a8a 45%, #0c2461 100%);
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 55px 50px;
+  }
+  .slide-1 .logo-area {
+    position: absolute;
+    top: 22px;
+    right: 28px;
+    background: rgba(255,255,255,0.15);
+    padding: 7px 16px;
+    border-radius: 20px;
+    font-size: 11px;
+    color: #ffffff;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+  }
+  .slide-1 .badge {
+    background: rgba(255,255,255,0.16);
+    border: 1px solid rgba(255,255,255,0.3);
+    color: #93c5fd;
+    padding: 6px 18px;
+    border-radius: 20px;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+  }
+  .slide-1 h1 {
+    font-size: 25px;
+    font-weight: 800;
+    color: #ffffff;
+    line-height: 1.35;
+    max-width: 780px;
+    margin-bottom: 28px;
+  }
+  .slide-1 h1 span { color: #60a5fa; }
+  .slide-1 .divider {
+    width: 70px;
+    height: 3px;
+    background: linear-gradient(90deg, #60a5fa, #38bdf8);
+    border-radius: 2px;
+    margin: 0 auto 30px;
+  }
+  .slide-1 .authors-box {
+    background: rgba(255,255,255,0.09);
+    border: 1px solid rgba(255,255,255,0.22);
+    border-radius: 12px;
+    padding: 20px 36px;
+    display: flex;
+    gap: 45px;
+    justify-content: center;
+  }
+  .slide-1 .info-item { text-align: left; }
+  .slide-1 .info-label {
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: #93c5fd;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .slide-1 .info-value {
+    font-size: 14.5px;
+    color: #ffffff;
+    font-weight: 600;
+  }
+
+  /* ─── SLIDE HEADERS ─── */
+  .slide-header {
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    padding: 18px 36px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .slide-header h2 {
+    font-size: 19px;
+    font-weight: 700;
+    color: white;
+  }
+  .slide-header .slide-num {
+    background: rgba(255,255,255,0.22);
+    color: white;
+    padding: 4px 12px;
+    border-radius: 16px;
+    font-size: 11.5px;
+    font-weight: 700;
+  }
+  .slide-body {
+    background: var(--white);
+    flex: 1;
+    padding: 26px 36px;
+  }
+
+  /* ─── ITEMS & CARTES COMPACTES ─── */
+  .item-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+  .item-list li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 14px;
+    border-radius: 8px;
+    background: var(--light-bg);
+    border-left: 4px solid var(--accent);
+    font-size: 13px;
+    color: var(--dark);
+  }
+  .item-list li.red { border-left-color: var(--red); background: #fef2f2; }
+  .item-list li.green { border-left-color: var(--green); background: #f0fdf4; }
+  .item-list li strong { color: var(--primary); }
+  .item-list li.red strong { color: var(--red); }
+
+  .question-box {
+    background: #eff6ff;
+    border-left: 4px solid var(--accent);
+    border-radius: 8px;
+    padding: 12px 18px;
+    margin-top: 14px;
+    font-size: 13px;
+    color: var(--primary);
+    font-weight: 600;
+    line-height: 1.45;
+  }
+
+  /* ─── GRILLES DE CARTES ─── */
+  .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .card {
+    background: var(--light-bg);
+    border-radius: 10px;
+    padding: 14px 16px;
+    border-top: 3px solid var(--accent);
+    border: 1px solid var(--border);
+    border-top-width: 3px;
+  }
+  .card.blue { border-top-color: var(--accent); }
+  .card.sky { border-top-color: var(--accent2); }
+  .card.green { border-top-color: var(--green); }
+  .card.orange { border-top-color: var(--orange); }
+  .card h4 {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--primary);
+    margin-bottom: 6px;
+  }
+  .card ul { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+  .card ul li {
+    font-size: 12px;
+    color: var(--dark);
+    padding-left: 10px;
+    position: relative;
+    line-height: 1.35;
+  }
+  .card ul li::before { content: "•"; position: absolute; left: 0; color: var(--accent); font-weight: 700; }
+
+  .intro-text {
+    background: #eff6ff;
+    border-left: 4px solid var(--accent);
+    border-radius: 0 8px 8px 0;
+    padding: 10px 14px;
+    font-size: 13px;
+    color: var(--dark);
+    margin-bottom: 14px;
+  }
+  .intro-text strong { color: var(--primary); }
+
+  .section-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--primary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 12px 0 8px;
+  }
+
+  .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .tag.green { background: #dcfce7; color: var(--green); }
+  .tag.blue { background: #dbeafe; color: var(--primary); }
+
+  /* ─── CLUSTER ROW ─── */
+  .cluster-row { display: flex; gap: 10px; margin-top: 10px; }
+  .cluster-node {
+    flex: 1;
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .cluster-node.primary { background: #dbeafe; border: 1.5px solid var(--accent); color: var(--primary); }
+  .cluster-node.secondary { background: #f0fdf4; border: 1.5px solid var(--green); color: var(--green); }
+  .cluster-node .node-label { font-size: 10.5px; font-weight: 400; margin-top: 3px; color: var(--gray); }
+
+  .footer-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--primary), var(--accent2), var(--green));
+  }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  .iso-badge {
+    font-size: 10px;
+    background: #1a4fa0;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-weight: 600;
+    margin-left: 4px;
+  }
+
+  /* ─── TABLEAU DU BILAN (DIAPO 9) ─── */
+  .audit-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 8px;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    border: 1px solid var(--border);
+  }
+  .audit-table thead tr { background: var(--primary); }
+  .audit-table thead th {
+    padding: 10px 14px;
+    color: white;
+    font-size: 12px;
+    font-weight: 700;
+    text-align: left;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .audit-table tbody tr { border-bottom: 1px solid var(--border); }
+  .audit-table tbody tr:nth-child(even) { background: #f8faff; }
+  .audit-table tbody td {
+    padding: 10px 14px;
+    font-size: 12.5px;
+    color: var(--dark);
+    vertical-align: middle;
+  }
+  .audit-table tbody td strong { color: var(--primary); }
+  .status-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .status-badge.fast { background: #dcfce7; color: #15803d; }
+  .status-badge.medium { background: #fef3c7; color: #b45309; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- SLIDE 1 — TITRE -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="slide slide-1 active" id="slide-1">
+  <div class="logo-area">TEK-UP UNIVERSITY</div>
+  <div class="badge">Audit Project · ISO 27001</div>
+  <h1>Implementation of an ERP (ODOO) <span>high availability architecture</span><br>according to the requirements of an <span>(ISO 27001)</span></h1>
+  <div class="divider"></div>
+  <div class="authors-box">
+    <div class="info-item">
+      <div class="info-label">Prepared by</div>
+      <div class="info-value">Nour ZAGHOUANI &amp; Eya WANES</div>
+    </div>
+    <div class="info-item">
+      <div class="info-label">Supervisor</div>
+      <div class="info-value">Mourad MELLITI</div>
+    </div>
+    <div class="info-item">
+      <div class="info-label">Institution</div>
+      <div class="info-value">TEK-UP University</div>
+    </div>
+  </div>
+  <div class="footer-bar"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- SLIDE 2 — PROBLÉMATIQUE -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="slide" id="slide-2">
+  <div class="slide-header">
+    <h2>🔴 Problem Statement : </h2>
+    <span class="slide-num">02 / 09</span>
+  </div>
+  <div class="slide-body">
+    <div class="intro-text">The ERP is a <strong>critical asset</strong> : any failure paralyzes company activity.</div>
+    <div class="two-col">
+      <ul class="item-list">
+        <li class="red">⛔ <div><strong>Business interruption </strong> </div></li>
+        <li class="red">⛔ <div><strong>Operational paralysis </strong> </div></li>
+        <li class="red">⛔ <div><strong>Financial losses </strong> </div></li>
+      </ul>
+      <ul class="item-list">
+        <li class="red">⚠️ <div><strong>Single point of failure (SPOF) </strong> </div></li>
+        <li class="red">⚠️ <div><strong>ISO 27001 non-compliance </strong> </div></li>
+        <li class="red">⚠️ <div><strong>Reputational risk </strong> </div></li>
+      </ul>
+    </div>
+    <div class="question-box">
+      ❓ <strong>Key question :</strong> How to guarantee the <strong>high availability</strong>, <strong>security</strong> and <strong>ISO 27001 compliance</strong> of an Odoo ERP without service interruption?
+    </div>
+  </div>
+  <div class="footer-bar"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- SLIDE 3 — OBJECTIFS -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="slide" id="slide-3">
+  <div class="slide-header">
+    <h2>🎯 Project Objectives</h2>
+    <span class="slide-num">03 / 09</span>
+  </div>
+  <div class="slide-body">
+    <div class="intro-text">Deploy an Odoo architecture that is <strong>highly available</strong>, <strong>secure</strong> and <strong>ISMS-compliant</strong>.</div>
+    <div class="two-col">
+      <ul class="item-list">
+        <li class="green">✅ <div><strong>Eliminate all SPOFs :</strong> Redundancy at each layer</div></li>
+        <li class="green">✅ <div><strong>Business continuity :</strong> Instant automatic failover</div></li>
+        <li class="green">✅ <div><strong>Reduction of interruptions :</strong> Minimized RTO and RPO</div></li>
+      </ul>
+      <ul class="item-list">
+        <li class="green">✅ <div><strong>Cyber resilience :</strong> Protection against outages and attacks</div></li>
+        <li class="green">✅ <div><strong>ISO 27001 compliance :</strong> Respect of security controls</div></li>
+        <li class="green">✅ <div><strong>Validation by tests :</strong> Real failure simulations</div></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bar"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- SLIDE 4 — SOLUTION PROPOSÉE (SCHÉMA) -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="slide" id="slide-4">
+  <div class="slide-header">
+    <h2>💡 Proposed Solution : Global Architecture</h2>
+    <span class="slide-num">04 / 09</span>
+  </div>
+  <div class="slide-body" style="display:flex;gap:20px;padding:20px 30px;">
+    <div style="flex:1;display:flex;flex-direction:column;gap:10px;">
+      <div class="intro-text" style="margin-bottom:0;"><strong>Redundant and segmented</strong> architecture in 3 distinct layers :</div>
+      <ul class="item-list">
+        <li>🔁 <div><strong>Total redundancy :</strong> 2 load balancers, 2 Odoo, 3 databases</div></li>
+        <li>⚡ <div><strong>Automatic failover :</strong> Transparent detection and failover</div></li>
+        <li>🔒 <div><strong>Security :</strong> HTTPS (443) with upstream firewall</div></li>
+        <li>📊 <div><strong>Monitoring :</strong> Continuous health checks</div></li>
+      </ul>
+      <div style="background:#eff6ff;padding:10px 14px;border-radius:8px;font-size:11.5px;color:var(--primary);margin-top:4px;">
+        <strong>Traffic flow :</strong><br>
+        🟢 Green = Main nominal traffic<br>
+        🔴 Red dashed = Failover path
+      </div>
+    </div>
+    <div style="flex:1.2;display:flex;align-items:center;justify-content:center;">
+      <img src="architecture_ha.jpg" alt="Schéma Architecture HA Odoo" style="max-width:100%;max-height:410px;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.1);object-fit:contain;">
+    </div>
+  </div>
+  <div class="footer-bar"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- SLIDE 5 — COUCHE LOAD BALANCER -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="slide" id="slide-5">
+  <div class="slide-header">
+    <h2>⚖️ Load Balancer Layer (Zone 1)</h2>
+    <span class="slide-num">05 / 09</span>
+  </div>
+  <div class="slide-body">
+    <div class="intro-text">Intelligent traffic distribution and <strong>elimination of the SPOF</strong> at ingress.</div>
+    <div class="card-grid">
+      <div class="card blue">
+        <h4>🔷 HAProxy</h4>
+        <ul>
+          <li>Distribution of HTTPS traffic to Odoo nodes</li>
+          <li>Proactive failure detection via <strong>health checks</strong></li>
+          <li>Prevention of server overload</li>
+        </ul>
+      </div>
+      <div class="card sky">
+        <h4>🔷 Keepalived (VRRP)</h4>
+        <ul>
+          <li>Management of a <strong>floating Virtual IP (VIP)</strong></li>
+          <li>Automatic failover between <strong>lb1 (Active)</strong> and <strong>lb2 (Backup)</strong></li>
+          <li>Guarantee of continuity without external disruption</li>
+        </ul>
+      </div>
+    </div>
+    <div style="margin-top:14px;display:flex;gap:12px;">
+      <div style="flex:1;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px;text-align:center;">
+        <strong style="color:var(--primary);">lb1 (Active / RHEL)</strong>
+        <div style="font-size:11px;color:var(--gray);">HAProxy + Keepalived (holds the VIP)</div>
+      </div>
+      <div style="display:flex;align-items:center;font-size:12px;color:var(--accent);font-weight:700;">⟵ VRRP ⟶</div>
+      <div style="flex:1;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px;text-align:center;">
+        <strong style="color:var(--green);">lb2 (Backup / RHEL)</strong>
+        <div style="font-size:11px;color:var(--gray);">HAProxy + Keepalived (instant recovery)</div>
+      </div>
+    </div>
+  </div>
+  <div class="footer-bar"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- SLIDE 6 — COUCHE APPLICATIVE -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="slide" id="slide-6">
+  <div class="slide-header">
+    <h2>⚙️ Odoo Application Layer (Zone 2)</h2>
+    <span class="slide-num">06 / 09</span>
+  </div>
+  <div class="slide-body">
+    <div class="intro-text">Containerized business processing ensuring high availability and isolation.</div>
+    <ul class="item-list" style="margin-bottom:16px;">
+      <li>🐳 <div><strong>Docker containers on VM :</strong> Identical and isolated <code style="background:#e2e8f0;padding:2px 6px;border-radius:4px;">odoo1</code> and <code style="background:#e2e8f0;padding:2px 6px;border-radius:4px;">odoo2</code> instances</div></li>
+      <li>🔗 <div><strong>Shared database :</strong> Single connection to the PostgreSQL cluster</div></li>
+      <li>⚡ <div><strong>Transparent failover :</strong> If odoo1 goes down, immediate redirection to odoo2</div></li>
+    </ul>
+    <div style="display:flex;gap:14px;">
+      <div style="flex:1;background:#eff6ff;border-radius:10px;padding:14px;text-align:center;border:1.5px solid #93c5fd;">
+        <div style="font-size:24px;">🖥️</div>
+        <div style="font-weight:700;color:var(--primary);font-size:13px;">odoo1 (VM / Docker)</div>
+        <span class="tag blue">Active Instance</span>
+      </div>
+      <div style="display:flex;align-items:center;font-size:11px;color:var(--gray);font-weight:600;text-align:center;">
+        ⟷<br><br>
+      </div>
+      <div style="flex:1;background:#f0fdf4;border-radius:10px;padding:14px;text-align:center;border:1.5px solid #86efac;">
+        <div style="font-size:24px;">🖥️</div>
+        <div style="font-weight:700;color:var(--green);font-size:13px;">odoo2 (VM / Docker)</div>
+        <span class="tag green">Ready Instance</span>
+      </div>
+    </div>
+  </div>
+  <div class="footer-bar"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- SLIDE 7 — COUCHE BASE DE DONNÉES -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="slide" id="slide-7">
+  <div class="slide-header">
+    <h2>🗄️ Database Layer (Zone 3)</h2>
+    <span class="slide-num">07 / 09</span>
+  </div>
+  <div class="slide-body">
+    <div class="intro-text">Most critical layer : cluster with <strong>3 nodes</strong> with replication and consensus.</div>
+    <div class="card-grid" style="grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px;">
+      <div class="card blue">
+        <h4>🗄️ PostgreSQL</h4>
+        <ul>
+          <li>Robust relational DBMS</li>
+          <li>Centralized ERP data</li>
+        </ul>
+      </div>
+      <div class="card sky">
+        <h4>🔁 Patroni</h4>
+        <ul>
+          <li>High availability orchestrator</li>
+          <li>Automatic primary election</li>
+        </ul>
+      </div>
+      <div class="card green">
+        <h4>🧠 etcd</h4>
+        <ul>
+          <li>Distributed key-value store</li>
+          <li>Anti-split-brain quorum</li>
+        </ul>
+      </div>
+    </div>
+    <div class="section-title">3-Node PostgreSQL Cluster</div>
+    <div class="cluster-row">
+      <div class="cluster-node primary">
+        🟦 <strong>DB1 (Primary)</strong>
+        <div class="node-label">Read &amp; Write (Patroni + etcd1)</div>
+      </div>
+      <div style="display:flex;align-items:center;color:var(--gray);font-size:12px;font-weight:700;">⟶ Sync ⟶</div>
+      <div class="cluster-node secondary">
+        🟩 <strong>DB2 (Secondary)</strong>
+        <div class="node-label">Synchronous replica (Patroni + etcd2)</div>
+      </div>
+      <div class="cluster-node secondary">
+        🟩 <strong>DB3 (Witness)</strong>
+        <div class="node-label">Quorum arbiter / anti-split-brain</div>
+      </div>
+    </div>
+  </div>
+  <div class="footer-bar"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- SLIDE 8 — COUCHE RÉSEAU & SÉCURISATION -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="slide" id="slide-8">
+  <div class="slide-header">
+    <h2>🔒 Network &amp; Security Layer (ISO 27001)</h2>
+    <span class="slide-num">08 / 09</span>
+  </div>
+  <div class="slide-body">
+    <!-- WAF compact -->
+    <div style="background:#fff7ed;border-left:4px solid var(--orange);border-radius:8px;padding:9px 14px;margin-bottom:12px;font-size:12.5px;">
+      🔥 <strong style="color:var(--orange);">WAF (1st defense line) :</strong> HTTPS inspection, blocking application attacks (SQLi, XSS, DDoS, brute force).
+    </div>
+    <div class="card-grid" style="grid-template-columns:1fr 1fr 1fr;gap:10px;">
+      <div class="card blue">
+        <h4>🛡️ Hardening Linux</h4>
+        <ul>
+          <li>Disabling useless services</li>
+          <li>Closing unused ports</li>
+          <li><strong>Auditd</strong> <span class="iso-badge">A.8.15</span> : Logging</li>
+          <li><strong>Chrony</strong> <span class="iso-badge">A.8.17</span> : Clock sync</li>
+        </ul>
+      </div>
+      <div class="card sky">
+        <h4>🌐 Segmentation <span class="iso-badge">A.8.22</span></h4>
+        <ul>
+          <li><strong>Zone 1 :</strong> Load Balancer</li>
+          <li><strong>Zone 2 :</strong> Odoo Application</li>
+          <li><strong>Zone 3 :</strong> Database</li>
+          <li>Strict inter-zone isolation</li>
+        </ul>
+      </div>
+      <div class="card green">
+        <h4>🔒 Accès HTTPS <span class="iso-badge">A.8.24</span></h4>
+        <ul>
+          <li>End-to-end TLS encryption</li>
+          <li><code style="background:#dcfce7;padding:1px 4px;border-radius:3px;font-size:11px;">https://erp.tek-up.local</code></li>
+          <li>Plaintext HTTP traffic forbidden</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="footer-bar"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- SLIDE 9 — BILAN DES TESTS (TABLEAU DEMO) -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="slide" id="slide-9">
+  <div class="slide-header">
+    <h2>📊 Test Assessment &amp; HA Validation</h2>
+    <span class="slide-num">09 / 09</span>
+  </div>
+  <div class="slide-body">
+    <div class="intro-text">Experimental validation of resilience and recovery times upon failure.</div>
+    <table class="audit-table">
+      <thead>
+        <tr>
+          <th>Scenario</th>
+          <th>Triggered failure</th>
+          <th>Expected behavior</th>
+          <th>Recovery time</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Nominal access</strong></td>
+          <td>None</td>
+          <td>Smooth HTTPS connection to Odoo page</td>
+          <td><span class="status-badge fast">Immediate</span></td>
+        </tr>
+        <tr>
+          <td><strong>Active load balancer loss</strong></td>
+          <td>HAProxy shutdown on lb1</td>
+          <td>Automatic VIP failover to lb2 (auto-return to lb1)</td>
+          <td><span class="status-badge fast">&lt; 10 s</span></td>
+        </tr>
+        <tr>
+          <td><strong>Application node loss</strong></td>
+          <td>odoo1 shutdown</td>
+          <td>HAProxy isolates odoo1, requests directed to odoo2</td>
+          <td><span class="status-badge fast">&lt; 10 s</span></td>
+        </tr>
+        <tr>
+          <td><strong>PostgreSQL primary loss</strong></td>
+          <td>Primary machine shutdown</td>
+          <td>Patroni promotes a replica ; Odoo reconnected via router</td>
+          <td><span class="status-badge medium">45 to 60 s</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="margin-top:14px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:10px 16px;font-size:12.5px;color:#166534;font-weight:600;">
+      ✅ <strong>Conclusion :</strong> Business continuity guaranteed 100% without human intervention — RTO compliant with ISO 27001 availability requirements.
+    </div>
+  </div>
+  <div class="footer-bar"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- NAVIGATION -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="nav">
+  <button id="prevBtn" onclick="changeSlide(-1)" disabled>← Previous</button>
+  <span class="slide-counter" id="counter">1 / 9</span>
+  <button id="nextBtn" onclick="changeSlide(1)">Next →</button>
+</div>
+
+<script>
+  let current = 1;
+  const total = 9;
+
+  function changeSlide(dir) {
+    document.getElementById('slide-' + current).classList.remove('active');
+    current += dir;
+    document.getElementById('slide-' + current).classList.add('active');
+    document.getElementById('counter').textContent = current + ' / ' + total;
+    document.getElementById('prevBtn').disabled = current === 1;
+    document.getElementById('nextBtn').disabled = current === total;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowRight' && current < total) changeSlide(1);
+    if (e.key === 'ArrowLeft' && current > 1) changeSlide(-1);
+  });
+</script>
+</body>
+</html>
